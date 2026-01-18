@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Convex Hull Visualizer</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #1e1e1e; color: #fff; }
+        #canvas { border: 2px solid #444; background: #2d2d2d; cursor: crosshair; }
+        button { margin: 5px; padding: 8px 16px; cursor: pointer; }
+        #results { margin-top: 10px; font-family: monospace; white-space: pre; }
+        .row { display: flex; gap: 20px; align-items: flex-start; }
+        input { width: 80px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h2>Convex Hull - Draw or Generate Points</h2>
+    <div class="row">
+        <div>
+            <canvas id="canvas" width="600" height="500"></canvas>
+            <div>
+                <button onclick="clear_all()">Clear</button>
+                <button onclick="compute()">Compute Hull</button>
+                <button onclick="generate()">Random</button>
+                <input type="number" id="npts" value="50" min="3">
+                <button onclick="exportPts()">Export</button>
+                <button onclick="importPts()">Import</button>
+            </div>
+        </div>
+        <div id="results"></div>
+    </div>
+    <script>
+const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+let points = [], hull_graham = [], hull_dc = [];
+
+canvas.onclick = e => {
+    const r = canvas.getBoundingClientRect();
+    points.push([e.clientX - r.left, e.clientY - r.top]);
+    draw();
+};
+
+function draw() {
+    ctx.fillStyle = '#2d2d2d'; ctx.fillRect(0, 0, 600, 500);
+    ctx.fillStyle = '#4fc3f7';
+    points.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, Math.PI*2); ctx.fill(); });
+    if (hull_graham.length > 1) drawHull(hull_graham, '#4caf50', 2);
+    if (hull_dc.length > 1) drawHull(hull_dc, '#ff9800', 4);
+}
+
+function drawHull(hull, color, width) {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+    ctx.moveTo(hull[0][0], hull[0][1]);
+    hull.forEach(p => ctx.lineTo(p[0], p[1]));
+    ctx.closePath(); ctx.stroke();
+}
+
+function cross(o, a, b) { return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]); }
+
+function graham(pts) {
+    pts = [...new Set(pts.map(p => p.join(',')))].map(s => s.split(',').map(Number)).sort((a,b) => a[0]-b[0] || a[1]-b[1]);
+    if (pts.length <= 1) return pts;
+    let lower = [], upper = [];
+    for (let p of pts) { while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop(); lower.push(p); }
+    for (let p of pts.reverse()) { while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop(); upper.push(p); }
+    return lower.slice(0, -1).concat(upper.slice(0, -1));
+}
+
+function divideConquer(pts) {
+    pts = [...new Set(pts.map(p => p.join(',')))].map(s => s.split(',').map(Number)).sort((a,b) => a[0]-b[0] || a[1]-b[1]);
+    if (pts.length <= 5) return graham(pts);
+    
+    function merge(left, right) {
+        const n1 = left.length, n2 = right.length;
+        let ui = 0, uj = 0, li = 0, lj = 0;
+        for (let i = 0; i < n1; i++) if (left[i][0] > left[ui][0]) ui = li = i;
+        for (let j = 0; j < n2; j++) if (right[j][0] < right[uj][0]) uj = lj = j;
+        
+        // Upper tangent
+        let done = false;
+        while (!done) {
+            done = true;
+            while (cross(right[uj], left[ui], left[(ui-1+n1)%n1]) >= 0) { ui = (ui-1+n1)%n1; done = false; }
+            while (cross(left[ui], right[uj], right[(uj+1)%n2]) <= 0) { uj = (uj+1)%n2; done = false; }
+        }
+        // Lower tangent
+        done = false;
+        while (!done) {
+            done = true;
+            while (cross(right[lj], left[li], left[(li+1)%n1]) <= 0) { li = (li+1)%n1; done = false; }
+            while (cross(left[li], right[lj], right[(lj-1+n2)%n2]) >= 0) { lj = (lj-1+n2)%n2; done = false; }
+        }
+        
+        let result = [];
+        for (let i = ui; ; i = (i+1)%n1) { result.push(left[i]); if (i === li) break; }
+        for (let j = lj; ; j = (j+1)%n2) { result.push(right[j]); if (j === uj) break; }
+        return result;
+    }
+    
+    const mid = Math.floor(pts.length / 2);
+    const left = divideConquer(pts.slice(0, mid));
+    const right = divideConquer(pts.slice(mid));
+    return merge(left, right);
+}
+
+function compute() {
+    let t1 = performance.now(); hull_graham = graham([...points]); t1 = performance.now() - t1;
+    let t2 = performance.now(); hull_dc = divideConquer([...points]); t2 = performance.now() - t2;
+    document.getElementById('results').textContent = 
+        `Points: ${points.length}\n\nGraham (green): ${t1.toFixed(3)}ms, hull=${hull_graham.length}\nD&C (orange):   ${t2.toFixed(3)}ms, hull=${hull_dc.length}`;
+    draw();
+}
+
+function generate() {
+    const n = parseInt(document.getElementById('npts').value) || 50;
+    points = Array.from({length: n}, () => [Math.random()*560+20, Math.random()*460+20]);
+    hull_graham = []; hull_dc = []; draw();
+}
+
+function clear_all() { points = []; hull_graham = []; hull_dc = []; draw(); document.getElementById('results').textContent = ''; }
+
+function exportPts() { navigator.clipboard.writeText(JSON.stringify(points)); alert('Copied to clipboard!'); }
+
+function importPts() {
+    const s = prompt('Paste points JSON:');
+    if (s) try { points = JSON.parse(s); hull_graham = []; hull_dc = []; draw(); } catch(e) { alert('Invalid JSON'); }
+}
+
+draw();
+    </script>
+</body>
+</html>
