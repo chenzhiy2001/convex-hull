@@ -65,39 +65,16 @@ function graham(pts) {
 
 function divideConquer(pts) {
     pts = [...new Set(pts.map(p => p.join(',')))].map(s => s.split(',').map(Number)).sort((a,b) => a[0]-b[0] || a[1]-b[1]);
-    if (pts.length <= 5) return graham(pts);
-    
-    function merge(left, right) {
-        const n1 = left.length, n2 = right.length;
-        let ui = 0, uj = 0, li = 0, lj = 0;
-        for (let i = 0; i < n1; i++) if (left[i][0] > left[ui][0]) ui = li = i;
-        for (let j = 0; j < n2; j++) if (right[j][0] < right[uj][0]) uj = lj = j;
-        
-        // Upper tangent
-        let done = false;
-        while (!done) {
-            done = true;
-            while (cross(right[uj], left[ui], left[(ui-1+n1)%n1]) >= 0) { ui = (ui-1+n1)%n1; done = false; }
-            while (cross(left[ui], right[uj], right[(uj+1)%n2]) <= 0) { uj = (uj+1)%n2; done = false; }
-        }
-        // Lower tangent
-        done = false;
-        while (!done) {
-            done = true;
-            while (cross(right[lj], left[li], left[(li+1)%n1]) <= 0) { li = (li+1)%n1; done = false; }
-            while (cross(left[li], right[lj], right[(lj-1+n2)%n2]) >= 0) { lj = (lj-1+n2)%n2; done = false; }
-        }
-        
-        let result = [];
-        for (let i = ui; ; i = (i+1)%n1) { result.push(left[i]); if (i === li) break; }
-        for (let j = lj; ; j = (j+1)%n2) { result.push(right[j]); if (j === uj) break; }
-        return result;
-    }
-    
+    if (pts.length <= 3) return graham(pts);
     const mid = Math.floor(pts.length / 2);
     const left = divideConquer(pts.slice(0, mid));
     const right = divideConquer(pts.slice(mid));
-    return merge(left, right);
+    // Merge hulls
+    const all = [...left, ...right].sort((a,b) => a[0]-b[0] || a[1]-b[1]);
+    let lower = [], upper = [];
+    for (let p of all) { while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop(); lower.push(p); }
+    for (let p of all.reverse()) { while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop(); upper.push(p); }
+    return lower.slice(0,-1).concat(upper.slice(0,-1));
 }
 
 function compute() {

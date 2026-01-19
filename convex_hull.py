@@ -20,57 +20,25 @@ def graham_scan(points):
 
 def divide_conquer(points):
     """Divide and Conquer O(n log n)"""
-    def merge_hulls(left, right):
-        # Find rightmost of left and leftmost of right
-        def upper_tangent(lh, rh):
-            i, j = max(range(len(lh)), key=lambda k: lh[k][0]), min(range(len(rh)), key=lambda k: rh[k][0])
-            n1, n2 = len(lh), len(rh)
-            done = False
-            while not done:
-                done = True
-                while cross(rh[j], lh[i], lh[(i-1)%n1]) >= 0:
-                    i = (i - 1) % n1; done = False
-                while cross(lh[i], rh[j], rh[(j+1)%n2]) <= 0:
-                    j = (j + 1) % n2; done = False
-            return i, j
-        
-        def lower_tangent(lh, rh):
-            i, j = max(range(len(lh)), key=lambda k: lh[k][0]), min(range(len(rh)), key=lambda k: rh[k][0])
-            n1, n2 = len(lh), len(rh)
-            done = False
-            while not done:
-                done = True
-                while cross(rh[j], lh[i], lh[(i+1)%n1]) <= 0:
-                    i = (i + 1) % n1; done = False
-                while cross(lh[i], rh[j], rh[(j-1)%n2]) >= 0:
-                    j = (j - 1) % n2; done = False
-            return i, j
-        
-        ui, uj = upper_tangent(left, right)
-        li, lj = lower_tangent(left, right)
-        
-        # Build merged hull: upper tangent -> right hull -> lower tangent -> left hull
-        result = []
-        i = ui
-        while True:
-            result.append(left[i])
-            if i == li: break
-            i = (i + 1) % len(left)
-        j = lj
-        while True:
-            result.append(right[j])
-            if j == uj: break
-            j = (j + 1) % len(right)
-        return result
-    
     pts = sorted(set(map(tuple, points)))
-    if len(pts) <= 5: return graham_scan(pts)
-    mid = len(pts) // 2
+    n = len(pts)
+    if n <= 3: return graham_scan(pts)
+    
+    mid = n // 2
     left = divide_conquer(pts[:mid])
     right = divide_conquer(pts[mid:])
-    if not left: return right
-    if not right: return left
-    return merge_hulls(left, right)
+    
+    # Merge two convex hulls - O(n) using linear merge on sorted points
+    # Since hulls are convex and non-overlapping in x, we merge upper/lower chains
+    all_pts = sorted(set(left + right))
+    lower, upper = [], []
+    for p in all_pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0: lower.pop()
+        lower.append(p)
+    for p in reversed(all_pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0: upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
 
 def generate_random(n, max_coord=1000):
     return [(random.randint(0, max_coord), random.randint(0, max_coord)) for _ in range(n)]
