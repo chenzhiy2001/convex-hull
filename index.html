@@ -66,15 +66,58 @@ function graham(pts) {
 function divideConquer(pts) {
     pts = [...new Set(pts.map(p => p.join(',')))].map(s => s.split(',').map(Number)).sort((a,b) => a[0]-b[0] || a[1]-b[1]);
     if (pts.length <= 3) return graham(pts);
+    
     const mid = Math.floor(pts.length / 2);
     const left = divideConquer(pts.slice(0, mid));
     const right = divideConquer(pts.slice(mid));
-    // Merge hulls
-    const all = [...left, ...right].sort((a,b) => a[0]-b[0] || a[1]-b[1]);
-    let lower = [], upper = [];
-    for (let p of all) { while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop(); lower.push(p); }
-    for (let p of all.reverse()) { while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop(); upper.push(p); }
-    return lower.slice(0,-1).concat(upper.slice(0,-1));
+    
+    const n1 = left.length, n2 = right.length;
+    let ri = 0, li = 0;
+    for (let i = 1; i < n1; i++) if (left[i][0] > left[ri][0] || (left[i][0] === left[ri][0] && left[i][1] < left[ri][1])) ri = i;
+    for (let j = 1; j < n2; j++) if (right[j][0] < right[li][0] || (right[j][0] === right[li][0] && right[j][1] > right[li][1])) li = j;
+    
+    // Upper tangent
+    let u1 = ri, u2 = li;
+    while (true) {
+        let moved = false;
+        while (cross(left[u1], right[u2], left[(u1+1)%n1]) >= 0) {
+            if (cross(left[u1], right[u2], left[(u1+1)%n1]) === 0 && left[(u1+1)%n1][1] <= left[u1][1]) break;
+            u1 = (u1+1)%n1; moved = true;
+        }
+        while (cross(left[u1], right[u2], right[(u2-1+n2)%n2]) >= 0) {
+            if (cross(left[u1], right[u2], right[(u2-1+n2)%n2]) === 0 && right[(u2-1+n2)%n2][1] <= right[u2][1]) break;
+            u2 = (u2-1+n2)%n2; moved = true;
+        }
+        if (!moved) break;
+    }
+    
+    // Lower tangent
+    let l1 = ri, l2 = li;
+    while (true) {
+        let moved = false;
+        while (cross(left[l1], right[l2], left[(l1-1+n1)%n1]) <= 0) {
+            if (cross(left[l1], right[l2], left[(l1-1+n1)%n1]) === 0 && left[(l1-1+n1)%n1][1] >= left[l1][1]) break;
+            l1 = (l1-1+n1)%n1; moved = true;
+        }
+        while (cross(left[l1], right[l2], right[(l2+1)%n2]) <= 0) {
+            if (cross(left[l1], right[l2], right[(l2+1)%n2]) === 0 && right[(l2+1)%n2][1] >= right[l2][1]) break;
+            l2 = (l2+1)%n2; moved = true;
+        }
+        if (!moved) break;
+    }
+    
+    // Build merged hull
+    let result = [];
+    for (let i = u1; ; i = (i+1)%n1) { result.push(left[i]); if (i === l1) break; }
+    for (let j = l2; ; j = (j+1)%n2) { result.push(right[j]); if (j === u2) break; }
+    
+    // Remove collinear
+    let final = [];
+    for (let p of result) {
+        while (final.length >= 2 && cross(final[final.length-2], final[final.length-1], p) === 0) final.pop();
+        final.push(p);
+    }
+    return final;
 }
 
 function compute() {
