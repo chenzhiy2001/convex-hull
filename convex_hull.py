@@ -18,88 +18,92 @@ def graham_scan(points):
         upper.append(p)
     return lower[:-1] + upper[:-1]
 
+def cc_triangle(pts):
+    pts = list(set(pts))
+    if len(pts) <= 1:
+        return pts
+    if len(pts) == 2:
+        return sorted(pts)
+
+    a, b, c = pts
+    area = cross(a, b, c)
+
+    if area > 0:      # CCW
+        return [a, b, c]
+    elif area < 0:    # CW → reverse
+        return [a, c, b]
+    else:             # Collinear → keep extremes
+        return sorted(pts)
+
 def divide_conquer(points):
-    """Divide and Conquer O(n log n) with O(h) tangent merge"""
-    pts = sorted(set(map(tuple, points)))
+    pts = sorted(set(points))        
+    return dc_hull(pts)
+
+
+def dc_hull(pts):
     n = len(pts)
-    if n <= 3: return graham_scan(pts)
-    
+    if n <= 3:
+        return cc_triangle(pts)
+
     mid = n // 2
-    left = divide_conquer(pts[:mid])
-    right = divide_conquer(pts[mid:])
-    
-    # Merge using tangent lines - O(h) where h is combined hull size
+    left = dc_hull(pts[:mid])
+    right = dc_hull(pts[mid:])
+
+    return merge_hulls(left, right)
+
+
+# ---------- Tangent Merge (O(h)) ----------
+
+def merge_hulls(left, right):
     n1, n2 = len(left), len(right)
-    
-    # Find starting points with proper tie-breaking for same x
-    ri = max(range(n1), key=lambda i: (left[i][0], -left[i][1]))
-    li = min(range(n2), key=lambda i: (right[i][0], right[i][1]))
-    
-    # Upper tangent: move CCW on left (i++), CW on right (j--)
-    u1, u2 = ri, li
+
+    # Rightmost point of left hull
+    i = max(range(n1), key=lambda k: left[k][0])
+    # Leftmost point of right hull
+    j = min(range(n2), key=lambda k: right[k][0])
+
+    # ---- Upper tangent ----
+    i_u, j_u = i, j
     while True:
         moved = False
-        while cross(left[u1], right[u2], left[(u1 + 1) % n1]) >= 0:
-            if cross(left[u1], right[u2], left[(u1 + 1) % n1]) == 0:
-                # Collinear: only move if it gets us higher
-                if left[(u1 + 1) % n1][1] <= left[u1][1]:
-                    break
-            u1 = (u1 + 1) % n1
+        while cross(right[j_u], left[i_u], left[(i_u + 1) % n1]) > 0:
+            i_u = (i_u + 1) % n1
             moved = True
-        while cross(left[u1], right[u2], right[(u2 - 1) % n2]) >= 0:
-            if cross(left[u1], right[u2], right[(u2 - 1) % n2]) == 0:
-                if right[(u2 - 1) % n2][1] <= right[u2][1]:
-                    break
-            u2 = (u2 - 1) % n2
+        while cross(left[i_u], right[j_u], right[(j_u - 1) % n2]) < 0:
+            j_u = (j_u - 1) % n2
             moved = True
         if not moved:
             break
-    
-    # Lower tangent: move CW on left (i--), CCW on right (j++)
-    l1, l2 = ri, li
+
+    # ---- Lower tangent ----
+    i_l, j_l = i, j
     while True:
         moved = False
-        while cross(left[l1], right[l2], left[(l1 - 1) % n1]) <= 0:
-            if cross(left[l1], right[l2], left[(l1 - 1) % n1]) == 0:
-                if left[(l1 - 1) % n1][1] >= left[l1][1]:
-                    break
-            l1 = (l1 - 1) % n1
+        while cross(right[j_l], left[i_l], left[(i_l - 1) % n1]) < 0:
+            i_l = (i_l - 1) % n1
             moved = True
-        while cross(left[l1], right[l2], right[(l2 + 1) % n2]) <= 0:
-            if cross(left[l1], right[l2], right[(l2 + 1) % n2]) == 0:
-                if right[(l2 + 1) % n2][1] >= right[l2][1]:
-                    break
-            l2 = (l2 + 1) % n2
+        while cross(left[i_l], right[j_l], right[(j_l + 1) % n2]) > 0:
+            j_l = (j_l + 1) % n2
             moved = True
         if not moved:
             break
-    
-    # Build merged hull (CCW): upper_left -> ... -> lower_left -> lower_right -> ... -> upper_right
-    result = []
-    i = u1
-    while True:
-        result.append(left[i])
-        if i == l1:
-            break
-        i = (i + 1) % n1
-    j = l2
-    while True:
-        result.append(right[j])
-        if j == u2:
-            break
-        j = (j + 1) % n2
-    
-    # Remove collinear points
-    final = []
-    for p in result:
-        while len(final) >= 2 and cross(final[-2], final[-1], p) == 0:
-            final.pop()
-        final.append(p)
-    while len(final) >= 3 and cross(final[-2], final[-1], final[0]) == 0:
-        final.pop()
-    while len(final) >= 3 and cross(final[-1], final[0], final[1]) == 0:
-        final.pop(0)
-    return final
+
+    # ---- Build merged hull (CCW) ----
+    hull = []
+
+    k = i_u
+    hull.append(left[k])
+    while k != i_l:
+        k = (k + 1) % n1
+        hull.append(left[k])
+
+    k = j_l
+    hull.append(right[k])
+    while k != j_u:
+        k = (k + 1) % n2
+        hull.append(right[k])
+
+    return hull
 
 def generate_random(n, max_coord=1000):
     return [(random.randint(0, max_coord), random.randint(0, max_coord)) for _ in range(n)]

@@ -52,80 +52,32 @@ function drawHull(hull, color, width) {
     ctx.closePath(); ctx.stroke();
 }
 
-function cross(o, a, b) { return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]); }
-
-function graham(pts) {
-    pts = [...new Set(pts.map(p => p.join(',')))].map(s => s.split(',').map(Number)).sort((a,b) => a[0]-b[0] || a[1]-b[1]);
-    if (pts.length <= 1) return pts;
-    let lower = [], upper = [];
-    for (let p of pts) { while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop(); lower.push(p); }
-    for (let p of pts.reverse()) { while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop(); upper.push(p); }
-    return lower.slice(0, -1).concat(upper.slice(0, -1));
-}
-
-function divideConquer(pts) {
-    pts = [...new Set(pts.map(p => p.join(',')))].map(s => s.split(',').map(Number)).sort((a,b) => a[0]-b[0] || a[1]-b[1]);
-    if (pts.length <= 3) return graham(pts);
-    
-    const mid = Math.floor(pts.length / 2);
-    const left = divideConquer(pts.slice(0, mid));
-    const right = divideConquer(pts.slice(mid));
-    
-    const n1 = left.length, n2 = right.length;
-    let ri = 0, li = 0;
-    for (let i = 1; i < n1; i++) if (left[i][0] > left[ri][0] || (left[i][0] === left[ri][0] && left[i][1] < left[ri][1])) ri = i;
-    for (let j = 1; j < n2; j++) if (right[j][0] < right[li][0] || (right[j][0] === right[li][0] && right[j][1] > right[li][1])) li = j;
-    
-    // Upper tangent
-    let u1 = ri, u2 = li;
-    while (true) {
-        let moved = false;
-        while (cross(left[u1], right[u2], left[(u1+1)%n1]) >= 0) {
-            if (cross(left[u1], right[u2], left[(u1+1)%n1]) === 0 && left[(u1+1)%n1][1] <= left[u1][1]) break;
-            u1 = (u1+1)%n1; moved = true;
-        }
-        while (cross(left[u1], right[u2], right[(u2-1+n2)%n2]) >= 0) {
-            if (cross(left[u1], right[u2], right[(u2-1+n2)%n2]) === 0 && right[(u2-1+n2)%n2][1] <= right[u2][1]) break;
-            u2 = (u2-1+n2)%n2; moved = true;
-        }
-        if (!moved) break;
+async function compute() {
+    if (points.length < 3) {
+        document.getElementById('results').textContent = 'Need at least 3 points';
+        return;
     }
     
-    // Lower tangent
-    let l1 = ri, l2 = li;
-    while (true) {
-        let moved = false;
-        while (cross(left[l1], right[l2], left[(l1-1+n1)%n1]) <= 0) {
-            if (cross(left[l1], right[l2], left[(l1-1+n1)%n1]) === 0 && left[(l1-1+n1)%n1][1] >= left[l1][1]) break;
-            l1 = (l1-1+n1)%n1; moved = true;
-        }
-        while (cross(left[l1], right[l2], right[(l2+1)%n2]) <= 0) {
-            if (cross(left[l1], right[l2], right[(l2+1)%n2]) === 0 && right[(l2+1)%n2][1] >= right[l2][1]) break;
-            l2 = (l2+1)%n2; moved = true;
-        }
-        if (!moved) break;
+    try {
+        const response = await fetch('http://localhost:8000/compute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(points)
+        });
+        
+        if (!response.ok) throw new Error('Server error');
+        
+        const result = await response.json();
+        
+        hull_graham = result.graham.hull;
+        hull_dc = result.divide_conquer.hull;
+        
+        document.getElementById('results').textContent = 
+            `Points: ${points.length}\n\nGraham (green): ${result.graham.time_ms.toFixed(3)}ms, hull=${hull_graham.length}\nD&C (orange):   ${result.divide_conquer.time_ms.toFixed(3)}ms, hull=${hull_dc.length}`;
+        draw();
+    } catch (e) {
+        document.getElementById('results').textContent = 'Error: Make sure server.py is running\n(python server.py)';
     }
-    
-    // Build merged hull
-    let result = [];
-    for (let i = u1; ; i = (i+1)%n1) { result.push(left[i]); if (i === l1) break; }
-    for (let j = l2; ; j = (j+1)%n2) { result.push(right[j]); if (j === u2) break; }
-    
-    // Remove collinear
-    let final = [];
-    for (let p of result) {
-        while (final.length >= 2 && cross(final[final.length-2], final[final.length-1], p) === 0) final.pop();
-        final.push(p);
-    }
-    return final;
-}
-
-function compute() {
-    let t1 = performance.now(); hull_graham = graham([...points]); t1 = performance.now() - t1;
-    let t2 = performance.now(); hull_dc = divideConquer([...points]); t2 = performance.now() - t2;
-    document.getElementById('results').textContent = 
-        `Points: ${points.length}\n\nGraham (green): ${t1.toFixed(3)}ms, hull=${hull_graham.length}\nD&C (orange):   ${t2.toFixed(3)}ms, hull=${hull_dc.length}`;
-    draw();
 }
 
 function generate() {

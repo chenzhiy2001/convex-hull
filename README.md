@@ -8,9 +8,9 @@ There are 3 ways to run the implementation.
 
 ### 1. Interactive Drawing in Web UI
 ```bash
-python -m http.server 8080
+python server.py
 ```
-Then open <http://0.0.0.0:8080/> in a web browser or the **Ports** tab if you are using VSCode
+Then open index.html in a web browser
 
 - **Click on the canvas** to add points manually (this helps us testing tricky edge cases easily), or just click **Random** button to generate random points
 - **Compute Hull** shows convex hulls computed by both algorithms (green=Graham, orange=Divide-and-Conquer)
