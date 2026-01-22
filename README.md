@@ -27,3 +27,11 @@ python test_runner.py test.json
 python test_runner.py           # Run benchmark with various testcase sizes
 python test_runner.py --verify  # Verify correctness (by comparing results of 2 algorithms)
 ```
+
+## Adversary
+
+We found a case when Divide-and-Conquer is most likely to be slower than Graham. You can test such cases by:
+
+```
+python gen_slow_dc.py
+```
